@@ -35,22 +35,27 @@ contract CCQueryUC is UniversalChanIbcApp {
     // IBC logic
 
     /**
-     * @dev Sends a packet with the caller's address over the universal channel.
-     * @param destPortAddr The address of the destination application.
-     * @param channelId The ID of the channel to send the packet to.
-     * @param timeoutSeconds The timeout in seconds (relative).
-     */
-    function sendUniversalPacket(address destPortAddr, bytes32 channelId, uint64 timeoutSeconds) external {
-        // TODO - Implement sendUniversalPacket to send a packet which will be received by the other chain
-        // The packet should contain the caller's address and a query string
-        // See onRecvUniversalPacket for the expected packet format in https://forum.polymerlabs.org/t/challenge-3-cross-contract-query-with-polymer/475
-        // Steps:
-        // 1. Encode the caller's address and the query string into a payload
-        // 2. Set the timeout timestamp at 10h from now
-        // 3. Call the IbcUniversalPacketSender to send the packet
+ * @dev Sends a packet with the caller's address over the universal channel.
+ * @param destPortAddr The address of the destination application.
+ * @param channelId The ID of the channel to send the packet to.
+ * @param timeoutSeconds The timeout in seconds (relative).
+ */
+function sendUniversalPacket(address destPortAddr, bytes32 channelId, uint64 timeoutSeconds) external {
+    // 1. Encode the caller's address and the query string into a payload
+    bytes memory payload = abi.encode(msg.sender, "crossChainQuery");
 
-        // Example of how to properly encode, set timestamp and send a packet can be found in XCounterUC.sol
-    }
+    // 2. Set the timeout timestamp at 10h from now
+    uint64 timeoutTimestamp = uint64(block.timestamp) + 10 hours;
+
+    // 3. Call the IbcUniversalPacketSender to send the packet
+    ibcUniversalPacketSender.sendUniversalPacket(
+        destPortAddr,
+        channelId,
+        payload,
+        timeoutTimestamp,
+        timeoutSeconds
+    );
+}
 
     /**
      * @dev Packet lifecycle callback that implements packet receipt logic and returns and acknowledgement packet.
@@ -96,26 +101,22 @@ contract CCQueryUC is UniversalChanIbcApp {
     }
 
     /**
-     * @dev Packet lifecycle callback that implements packet acknowledgment logic.
-     *      MUST be overriden by the inheriting contract.
-     *
-     * @param channelId the ID of the channel (locally) the ack was received on.
-     * @param packet the Universal packet encoded by the source and relayed by the relayer.
-     * @param ack the acknowledgment packet encoded by the destination and relayed by the relayer.
-     */
-    function onUniversalAcknowledgement(bytes32 channelId, UniversalPacket memory packet, AckPacket calldata ack)
-        external
-        override
-        onlyIbcMw
-    {
-        // TODO - Implement onUniversalAcknowledgement to handle the received acknowledgment packet
-        // The packet should contain the secret message from the Base Contract at address: 0x528f7971cE3FF4198c3e6314AA223C83C7755bf7
-        // Steps:
-        // 1. Decode the counter from the ack packet
-        // 2. Emit a LogAcknowledgement event with the message
+ * @dev Packet lifecycle callback that implements packet acknowledgment logic.
+ * @param channelId the ID of the channel (locally) the ack was received on.
+ * @param packet the Universal packet encoded by the source and relayed by the relayer.
+ * @param ack the acknowledgment packet encoded by the destination and relayed by the relayer.
+ */
+function onUniversalAcknowledgement(bytes32 channelId, UniversalPacket memory packet, AckPacket calldata ack)
+    external
+    override
+    onlyIbcMw
+{
+    // 1. Decode the message from the ack.ackData
+    string memory message = abi.decode(ack.ackData, (string));
 
-        // An example of how to properly decode and handle an ack packet can be found in XCounterUC.sol
-    }
+    // 2. Emit the LogAcknowledgement event with the decoded message
+    emit LogAcknowledgement(message);
+}
 
     /**
      * @dev Packet lifecycle callback that implements packet receipt logic and return and acknowledgement packet.
